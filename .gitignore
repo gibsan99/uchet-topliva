@@ -1,0 +1,9 @@
+tauri-app/src-tauri/target/
+tauri-app/src-tauri/gen/
+.DS_Store
+.claude/
+База знаний/
+список аэродромов/
+*.backup-*.html
+*.webloc
+САБАГЕНТЫ.md
