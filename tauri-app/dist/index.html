@@ -118,6 +118,7 @@
   .readout .item.overrun .v{color:var(--red);}
   .warn-banner{display:flex;align-items:center;gap:8px;background:rgba(235,87,87,0.12);border:1px solid var(--red);color:var(--red);border-radius:8px;padding:8px 10px;font-size:12.5px;margin-top:8px;}
   .overrun-banner{display:flex;align-items:center;gap:10px;background:var(--red);border:2px solid #8a1f1f;color:#fff;border-radius:8px;padding:10px 12px;font-size:13px;font-weight:700;margin-top:8px;}
+  .confirm-warn{display:inline-block;color:var(--red);font-weight:800;text-decoration:underline;margin-bottom:6px;}
   .overrun-banner .ico{font-size:18px;line-height:1;}
   .btn.primary:disabled{background:var(--panel-2);color:var(--text-dim);border-color:var(--line);cursor:not-allowed;font-weight:500;}
 
@@ -142,6 +143,7 @@
 
   .modal-back{position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:50;padding:calc(18px + env(safe-area-inset-top,0px)) calc(18px + env(safe-area-inset-right,0px)) calc(18px + env(safe-area-inset-bottom,0px)) calc(18px + env(safe-area-inset-left,0px));}
   .modal{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;max-width:360px;width:100%;max-height:85vh;overflow-y:auto;}
+  .modal-sticky-footer{position:sticky;bottom:-18px;left:0;right:0;background:var(--panel);margin:10px -18px -18px -18px;padding:10px 18px 18px 18px;border-top:1px solid var(--line);}
   .modal h3{margin:0 0 10px 0;font-size:15px;}
   .modal .list-item{display:flex;justify-content:space-between;align-items:center;padding:10px 9px;min-height:44px;border-radius:7px;cursor:pointer;font-family:var(--mono);}
   .modal .list-item:hover{background:var(--panel-2);}
@@ -292,7 +294,6 @@
   <div class="section-title">Расчёт</div>
   <div class="readout" id="readout"></div>
   <div class="warn-banner" id="warnBanner" style="display:none;"></div>
-  <div class="warn-banner" id="fieldReminderBanner" style="display:none;"></div>
   <div class="overrun-banner" id="overrunBanner" style="display:none;"></div>
 
   <div class="section-title">Примечание</div>
@@ -323,7 +324,7 @@
   <div class="modal" style="max-width:520px;">
     <h3>История командировок</h3>
     <div id="tripsList"></div>
-    <div class="btn-row" style="margin-top:10px;"><button class="btn" id="closeHistoryBtn">Закрыть</button></div>
+    <div class="btn-row modal-sticky-footer"><button class="btn" id="closeHistoryBtn">Закрыть</button></div>
   </div>
 </div>
 
@@ -638,7 +639,7 @@ function generateOfficialXlsx(flights, meta){
     return `<col min="${idx}" max="${idx}" width="${w}" customWidth="1"/>`;
   }).join('') + '</cols>';
 
-  const sheetXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:AE${footer.lastRow}"/><sheetViews><sheetView workbookViewId="0"/></sheetViews>${colsXml}<sheetData>${sheetData}</sheetData>${mergeXml}<pageMargins left="0.3937007874015748" right="0.15748031496062992" top="0.3937007874015748" bottom="0.3937007874015748" header="0.5118110236220472" footer="0.5118110236220472"/><pageSetup paperSize="9" orientation="landscape"/></worksheet>`;
+  const sheetXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetPr><pageSetUpPr fitToPage="1"/></sheetPr><dimension ref="A1:AE${footer.lastRow}"/><sheetViews><sheetView workbookViewId="0"/></sheetViews>${colsXml}<sheetData>${sheetData}</sheetData>${mergeXml}<pageMargins left="0.3937007874015748" right="0.15748031496062992" top="0.3937007874015748" bottom="0.3937007874015748" header="0.5118110236220472" footer="0.5118110236220472"/><pageSetup paperSize="9" orientation="landscape" fitToWidth="1" fitToHeight="0" scale="100"/></worksheet>`;
 
   const contentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/xl/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/></Types>`;
   const rootRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`;
@@ -658,7 +659,7 @@ function generateOfficialXlsx(flights, meta){
 }
 // ===== конец официального генератора xlsx =====
 
-const APP_VERSION = '2026-07-22 07:53'; // обновляется вручную при каждой правке — видно в Настройках
+const APP_VERSION = '2026-07-23 23:22'; // обновляется вручную при каждой правке — видно в Настройках
 
 
 const DEFAULT_AIRFIELDS = ["АБАКАН","АЛДАН","АМДЕРМА","АНАДЫРЬ","АНАПА","АНДРЕАПОЛЬ","АПАТИТЫ","АРЗАМАС","АРМАВИР","АРСЕНЬЕВ","АРХАНГЕЛЬСК","АСТРАХАНЬ","АХТУБИНСК","АШУЛУК","БАГАЙ-БАРАНОВКА","БАДА","БАЛАШОВ","БАРНАУЛ","БАТАГАЙ","БЕГИШЕВО","БЕЛАЯ","БЕЛГОРОД","БЕЛОЯРСКИЙ","БЕРДСК","БЛАГОВЕЩЕНСК","БОВАНЕНКОВО","БОРИСОГЛЕБСК","БРАТСК","БРЕСТ","БРЯНСК","БУГУЛЬМА","БУДЕННОВСК","БУРЕВЕСТНИК","БУТУРЛИНОВКА","ВАРФОЛОМЕЕВКА","ВИТЕБСК","ВЛАДИВОСТОК","ВЛАДИКАВКАЗ","ВЛАДИМИР","ВОЗДВИЖЕНКА","ВОЗЖАЕВКА","ВОЛГОГРАД","ВОЛОГДА","ВОРКУТА","ВОРОНЕЖ","ВЯЗЬМА","ГАРОВКА","ГВАРДЕЙСКОЕ","ГДОВ","ГЕЛЕНДЖИК","ГИССАР","ГОМЕЛЬ","ГОРЕЛОВО","ГОРНО-АЛТАЙСК","ГРОДНО","ГРОЗНЫЙ","ГРОМОВО","ГУДАУТА","ДЖАНКОЙ","ДОМНА","ДОНСКОЕ","ДОРОХОВО","ДУШАНБЕ","ЕЙСК","ЕКАТЕРИНБУРГ","ЕНИСЕЙСК","ЕРЕВАН","ЕРМОЛИНО","ЖИГАНСК","ЗЕРНОГРАД","ЗЫРЯНКА","ИВАНОВО","ИГАРКА","ИЖЕВСК","ИРКУТСК","ИРКУТСК-2","ИТУРУП","ЙОШКАР-ОЛА","КАЗАНЬ","КАЛИНИНГРАД","КАЛУГА","КАМБАЛА","КАМЕНСК-УРАЛЬСКИЙ","КАНСК","КАНТ","КАПУСТИН ЯР","КАЧА","КЕМЕРОВО","КЕПЕРВЕЕМ","КИМРЫ","КИРЖАЧ","КИРОВ","КИРОВСКОЕ","КЛИН","КЛЮЧИ-КАМЧАТСКИЕ","КОГАЛЫМ","КОМСОМОЛЬСК-НА-АМУРЕ","КОРЕНОВСК","КОСТРОМА","КОТЕЛЬНИКОВО","КОТЛАС","КРАЙНИЙ","КРАСНОДАР","КРАСНОЯРСК","КРЫМСК","КРЯЖ","КУБИНКА","КУБОВАЯ","КУМЕРТАУ","КУРГАН","КУРСК","КУЩЕВСКАЯ","КЫЗЫЛ","ЛЕВАШОВО","ЛЕНСК","ЛИПЕЦК","ЛИПЕЦК-2","ЛУХОВИЦЫ","МАГАДАН","МАГАН","МАГНИТОГОРСК","МАЙКОП","МАРКОВО","МАХАЧКАЛА","МИЛЛЕРОВО","МИНЕРАЛЬНЫЕ ВОДЫ","МИНСК","МИРНЫЙ","МИЧУРИНСК","МОГИЛЕВ","МОЗДОК","МОНЧЕГОРСК","МОРОЗОВСК","МОСКВА","МУРМАНСК","МЫС ШМИДТА","НАГУРСКОЕ","НАДЫМ","НАЛЬЧИК","НАРЬЯН-МАР","НЕРЮНГРИ","НИЖНЕВАРТОВСК","НИЖНИЙ НОВГОРОД","НИЖНИЙ ТАГИЛ","НИКОЛАЕВКА","НИКОЛАЕВСК-НА-АМУРЕ","НОВОКУЗНЕЦК","НОВОСИБИРСК","НОВЫЙ УРЕНГОЙ","НОРИЛЬСК","НОЯБРЬСК","НЮРБА","НЯГАНЬ","ОЛЁКМИНСК","ОЛЕНЁК","ОЛЕНЬЯ","ОМОЛОН","ОМСК","ОРЕНБУРГ","ОРЕНБУРГ-2","ОРСК","ОСТАФЬЕВО","ОСТРОВ","ОХОТСК","ПЕВЕК","ПЕНЗА","ПЕРМЬ","ПЕТРОЗАВОДСК","ПЕТРОПАВЛОВСК-КАМЧАТСКИЙ","ПЕЧОРА","ПЛЕСЕЦК","ПОДКАМЕННАЯ ТУНГУСКА","ПОЛЯРНЫЙ","ПРИБЫЛОВО","ПРИМОРСКО-АХТАРСК","ПРОБА","ПРОБА НА РЕЖИМЕ","ПРОВИДЕНИЯ","ПСКОВ","ПУГАЧЕВ","ПУЩИНО","РАМЕНСКОЕ","РЖЕВ","РОГАЧЕВО","РОСТОВ-НА-ДОНУ","РТИЩЕВО","РУЛЕНИЕ","РЫБИНСК","РЯЗАНЬ","САБЕТТА","САВАСЛЕЙКА","САЛЕХАРД","САМАРА","САНКТ-ПЕТЕРБУРГ","САРАНСК","САРАТОВ","СЕВАСТОПОЛЬ","СЕВЕРОМОРСК-1","СЕВЕРОМОРСК-3","СЕЙМЧАН","СЕЩА","СИБИРСКИЙ","СИВЕРСКИЙ","СИМФЕРОПОЛЬ","СЛЕПЦОВСКАЯ","СМОЛЕНСК","СОВЕТСКАЯ ГАВАНЬ","СОВЕТСКИЙ","СОКОЛ","СОКОЛОВКА","СОЛЬЦЫ","СОЧИ","СРЕДНИЙ","СТАВРОПОЛЬ","СТАРАЯ РУССА","СТАРЫЙ ОСКОЛ","СТРЕЖЕВОЙ","СУРГУТ","СЫЗРАНЬ","СЫКТЫВКАР","ТАГАНРОГ","ТАЛАКАН","ТАМБОВ","ТАТИЩЕВО","ТВЕРЬ","ТЕМП","ТЕПЛЫЙ КЛЮЧ","ТИКСИ","ТИХОРЕЦК","ТОМСК","ТОРЖОК","ТОЦКОЕ","ТУАПСЕ","ТУЛА","ТЮМЕНЬ","УЖУР","УКРАИНКА","УЛАН-УДЭ","УЛЬЯНОВСК","УПРУН","УРАЙ","УСИНСК","УСТЬ-КУТ","УСТЬ-МАЯ","УФА","УХТА","ХАБАРОВСК","ХАНТЫ-МАНСИЙСК","ХАТАНГА","ХЕРСОНЕС","ХОТИЛОВО","ЦЕНТРАЛЬНАЯ УГЛОВАЯ","ЧЕБЕНЬКИ","ЧЕБОКСАРЫ","ЧЕЛЯБИНСК","ЧЕРЕПОВЕЦ","ЧЕРНИГОВКА","ЧЕРНЯХОВСК","ЧЕРСКИЙ","ЧИТА","ЧКАЛОВСКИЙ","ЧОКУРДАХ","ШАЙКОВКА","ШАТАЛОВО","ЭЛИСТА","ЭНГЕЛЬС-2","ЮЖНО-САХАЛИНСК","ЯКУТСК","ЯМБУРГ","ЯРОСЛАВЛЬ"];
@@ -716,12 +717,13 @@ function closeAppModal(result){
   pendingModalResolve = null;
   if(resolve) resolve(result);
 }
-function showAppConfirm(message){
+function showAppConfirm(message, htmlMessage){
   if(pendingModalResolve) pendingModalResolve(false); // не даём предыдущему вызову зависнуть навсегда, если модалку переоткрыли раньше ответа
   return new Promise(resolve=>{
     pendingModalResolve = resolve;
     document.getElementById('confirmModalTitle').textContent = 'Подтвердите действие';
-    document.getElementById('confirmModalText').textContent = message;
+    const textEl = document.getElementById('confirmModalText');
+    if(htmlMessage){ textEl.innerHTML = htmlMessage; } else { textEl.textContent = message; }
     const actions = document.getElementById('confirmModalActions');
     actions.innerHTML = '';
     const yesBtn = document.createElement('button');
@@ -931,8 +933,9 @@ function updateAirfieldSuggest(){
   box.innerHTML = matches.map(a=>`<div class="sd-item">${xmlEscHtml(a)}</div>`).join('');
   box.style.display='block';
   box.querySelectorAll('.sd-item').forEach((el,i)=>{
-    el.addEventListener('mousedown', e=>{
-      e.preventDefault(); // чтобы не терять фокус раньше клика
+    // click (не mousedown) — надёжнее на тач-экранах; закрытие списка при потере фокуса отложено (см. блок ниже),
+    // чтобы у тапа было время сработать раньше, чем поле потеряет фокус
+    el.addEventListener('click', ()=>{
       document.getElementById('f_airfield').value = matches[i];
       box.style.display='none'; box.innerHTML='';
       renderReadoutOnly();
@@ -1057,19 +1060,6 @@ function flightsForCalcWithPosition(f){
   return {flightsForCalc, thisIndex};
 }
 
-function updateFieldReminders(f){
-  const box = document.getElementById('fieldReminderBanner');
-  const msgs = [];
-  if(!f.airfield || !f.airfield.trim()) msgs.push('не указан аэродром посадки');
-  if(parseHM(f.apuH, f.apuM)===0) msgs.push('не указана наработка ВСУ');
-  if(state.settings.manualDate && !f.date) msgs.push('не указана дата полёта');
-  if(msgs.length){
-    box.style.display='flex';
-    box.innerHTML = `⚠ Проверьте: ${msgs.join(', ')}.`;
-  } else {
-    box.style.display='none';
-  }
-}
 function renderReadoutOnly(){
   const f = readForm();
   const {flightsForCalc, thisIndex} = flightsForCalcWithPosition(f);
@@ -1085,7 +1075,6 @@ function renderReadoutOnly(){
     <div class="item after"><div class="v">${fmt(last.O)}</div><div class="k">После полёта с заправкой</div></div>
     <div class="item ${last.flag?'warn':'after'}"><div class="v">${fmt(last.N)}</div><div class="k">После, без заправки</div></div>
   `;
-  updateFieldReminders(f);
   const warnBox = document.getElementById('warnBanner');
   if(last.flag){
     warnBox.style.display='flex';
@@ -1231,8 +1220,10 @@ document.getElementById('f_before').addEventListener('input', e=>{
   renderReadoutOnly();
 });
 document.getElementById('f_airfield').addEventListener('input', ()=>{ updateAirfieldSuggest(); renderReadoutOnly(); });
+document.getElementById('f_airfield').addEventListener('focus', ()=>{ updateAirfieldSuggest(); });
 document.getElementById('f_airfield').addEventListener('blur', ()=>{
-  document.getElementById('airfieldSuggest').style.display='none';
+  // задержка, чтобы тап по варианту в списке (событие click) успел сработать раньше, чем список скроется
+  setTimeout(()=>{ document.getElementById('airfieldSuggest').style.display='none'; }, 250);
 });
 document.getElementById('f_date').addEventListener('input', ()=>{
   if(!state.settings.manualDate) return;
@@ -1271,7 +1262,9 @@ document.getElementById('saveBtn').addEventListener('click', async ()=>{
   if(parseHM(f.apuH, f.apuM)===0) missingFields.push('наработка ВСУ');
   if(state.settings.manualDate && !f.date) missingFields.push('дата полёта');
   if(missingFields.length){
-    if(!(await showAppConfirm(`⚠ Не указано: ${missingFields.join(', ')}. Сохранить всё равно?`))) return;
+    const plain = `⚠ Не указано: ${missingFields.join(', ')}. Сохранить всё равно?`;
+    const warnHtml = `<span class="confirm-warn">⚠️ Не указано: ${missingFields.join(', ')}! ⚠️</span><br>Сохранить всё равно?`;
+    if(!(await showAppConfirm(plain, warnHtml))) return;
   }
   const flabel = `${f.airfield||'без аэродрома'}, ${formatDateRu(f.date)}`;
   const okSave = await showAppConfirm(state.editingId ? `Сохранить изменения в полёте (${flabel})?` : `Сохранить полёт (${flabel})?`);
@@ -1449,17 +1442,33 @@ function archiveCapability(){
 }
 async function pickArchiveFolder(){
   const cap = archiveCapability();
-  if(cap==='tauri'){
-    const picked = await window.__TAURI__.dialog.open({directory:true, multiple:false, title:'Папка для архива экспортов'});
-    if(picked){ state.settings.archiveFolderPath = picked; saveSettings(); }
-  } else if(cap==='fsa'){
-    try{
+  try{
+    if(cap==='tauri'){
+      if(!window.__TAURI__.dialog || !window.__TAURI__.dialog.open){
+        await showAppAlert('Диагностика: window.__TAURI__.dialog недоступен в этой сборке приложения. Сообщите об этом — нужно менять способ вызова.');
+        return;
+      }
+      const picked = await window.__TAURI__.dialog.open({directory:true, multiple:false, title:'Папка для архива экспортов'});
+      if(picked){
+        const path = typeof picked === 'string' ? picked : (picked && picked.path) ? picked.path : (Array.isArray(picked) ? picked[0] : null);
+        if(!path){
+          await showAppAlert('Диагностика: диалог вернул неожиданный формат пути: ' + JSON.stringify(picked));
+          return;
+        }
+        state.settings.archiveFolderPath = path;
+        saveSettings();
+      }
+    } else if(cap==='fsa'){
       const handle = await window.showDirectoryPicker({mode:'readwrite'});
       fsaDirHandle = handle;
       await idbSetHandle(handle);
       state.settings.archiveFolderPath = handle.name;
       saveSettings();
-    } catch(e){ /* пользователь отменил выбор папки */ }
+    }
+  } catch(e){
+    if(e && e.name !== 'AbortError'){ // AbortError = пользователь просто закрыл диалог, не показываем как ошибку
+      await showAppAlert('Не удалось выбрать папку: ' + (e && e.message ? e.message : String(e)));
+    }
   }
   updateArchiveFolderLabel();
 }
@@ -1508,6 +1517,9 @@ window.exportTrip = async function(id){
   if(!t.flights.length){ await showAppAlert('В этой командировке ещё нет полётов'); return; }
   const bytes = generateOfficialXlsx(calcChain(t.flights), buildExportMetaFor(t));
   const filename = exportFileName(t);
+  const xlsxType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+  // 1) Mac (Tauri) или Android/Chrome с выбранной папкой — сохраняем прямо в архив борт/месяц, как раньше
   let savedPath = null;
   try { savedPath = await saveToArchive(t, bytes, filename); } catch(e){ console.error('saveToArchive', e); savedPath = null; }
   if(savedPath){
@@ -1516,7 +1528,25 @@ window.exportTrip = async function(id){
     await showAppAlert(`Файл сохранён в архив:\n${savedPath}`);
     return;
   }
-  const blob = new Blob([bytes], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+
+  // 2) Телефон/браузер без настроенной папки архива — системное окно «Поделиться» (не на Mac/Tauri, там поведение как раньше)
+  if(!window.__TAURI__ && navigator.share && navigator.canShare){
+    try{
+      const file = new File([bytes], filename, {type: xlsxType});
+      if(navigator.canShare({files:[file]})){
+        await navigator.share({files:[file], title: filename});
+        t.exportCount = (t.exportCount||0)+1;
+        persistTrips();
+        return; // системное окно само даёт обратную связь об успехе — доп. alert не нужен
+      }
+    } catch(e){
+      if(e && e.name === 'AbortError') return; // пользователь просто закрыл окно "Поделиться" — не ошибка, ничего не делаем
+      console.error('navigator.share', e); // иначе — проваливаемся в обычное скачивание ниже
+    }
+  }
+
+  // 3) Запасной вариант — обычное скачивание (Mac без папки, старые браузеры без «Поделиться»)
+  const blob = new Blob([bytes], {type: xlsxType});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a'); a.href=url;
   a.download = filename;
@@ -1584,7 +1614,7 @@ function renderTripsList(){
       ${grid}
       <div class="tc-actions">
         <button class="btn small" onclick="openTrip('${t.id}')">Открыть</button>
-        <button class="btn small" onclick="exportTrip('${t.id}')">Экспорт</button>
+        <button class="btn small" onclick="exportTrip('${t.id}')">Поделиться</button>
         <button class="btn small" onclick="toggleTripStatus('${t.id}')">${t.status==='done'?'Снова открыть':'Завершить'}</button>
         <button class="btn small danger" onclick="deleteTrip('${t.id}')">Удалить</button>
       </div>
