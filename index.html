@@ -310,7 +310,7 @@
   <div class="modal">
     <h3 id="tripModalTitle">Новая командировка</h3>
     <div class="hint" style="margin-bottom:10px;">Дата определится по первому полёту, а завершится — когда нажмёте «Завершить командировку».</div>
-    <div class="row"><div class="field"><label>Номер борта</label><input type="text" id="trip_tail" placeholder="напр. 76840"></div></div>
+    <div class="row"><div class="field"><label>Номер борта</label><input type="text" id="trip_tail" inputmode="numeric" placeholder="напр. 76840"></div></div>
     <div class="row"><div class="field"><label>ФИО командира (КК)</label><input type="text" id="trip_kk" placeholder="Иванов И.И."></div></div>
     <div class="row"><div class="field"><label>Топливо на вылет, кг</label><input type="text" id="trip_fuel" inputmode="numeric" placeholder="0"></div></div>
     <div class="btn-row" style="margin-top:10px;">
@@ -756,18 +756,23 @@ function showAppAlert(message){
 const LS='fueltrack_';
 function lsGet(k){ const v=localStorage.getItem(LS+k); return v===null?null:v; }
 function lsSet(k,v){ localStorage.setItem(LS+k,v); }
+// оборачивает JSON.parse — повреждённые данные в localStorage не должны обрывать загрузку всего приложения
+function safeParseJSON(str, fallback){
+  if(str==null) return fallback;
+  try{ return JSON.parse(str); }catch(e){ console.error('Повреждённые данные в localStorage, использую значение по умолчанию:', e); return fallback; }
+}
 
 async function loadState(){
-  const s = lsGet('settings'); if(s) state.settings = {...state.settings, ...JSON.parse(s)};
+  const s = lsGet('settings'); if(s) state.settings = {...state.settings, ...safeParseJSON(s, {})};
   applyTheme(); applyTextSize();
   state.ownerName = lsGet('owner_name') || '';
   const tripsRaw = lsGet('trips');
-  if(tripsRaw){ state.trips = JSON.parse(tripsRaw); }
+  if(tripsRaw){ state.trips = safeParseJSON(tripsRaw, []); }
   else { migrateOldData(); }
   state.activeTripId = lsGet('active_trip_id');
   if(!activeTrip() && state.trips.length){ state.activeTripId = state.trips[0].id; lsSet('active_trip_id', state.activeTripId); }
   loadActiveFlights();
-  const af = lsGet('airfields'); const storedAirfields = af?JSON.parse(af):[];
+  const af = lsGet('airfields'); const storedAirfields = safeParseJSON(af, []);
   state.airfields = Array.from(new Set([...DEFAULT_AIRFIELDS, ...storedAirfields])).sort((a,b)=>a.localeCompare(b,'ru'));
   renderAirfieldList();
   buildTimeGrid();
@@ -778,16 +783,20 @@ async function loadState(){
 }
 // перевод старой модели (борт → отдельный список полётов) в новую (командировки)
 function migrateOldData(){
-  const tailsRaw = lsGet('aircraft_list'); const tails = tailsRaw?JSON.parse(tailsRaw):[];
-  state.trips = tails.map(tail=>{
-    const raw = lsGet('flights:'+tail); const flights = raw?JSON.parse(raw):[];
-    const crewRaw = lsGet('crew:'+tail); const crew = crewRaw?JSON.parse(crewRaw):{};
+  const tailsRaw = lsGet('aircraft_list'); const tails = safeParseJSON(tailsRaw, []);
+  state.trips = tails.map(tailRaw=>{
+    // старые записи хранились по ключам с исходным (несанированным) бортом — читаем по tailRaw,
+    // но в новую модель кладём очищенный tail (иначе он позже попадёт в путь файла при экспорте на Mac)
+    const tail = String(tailRaw).replace(TAIL_FORBIDDEN_CHARS,'');
+    const raw = lsGet('flights:'+tailRaw); const flights = safeParseJSON(raw, []);
+    const crewRaw = lsGet('crew:'+tailRaw); const crew = safeParseJSON(crewRaw, {});
     const initialFuel = flights.length ? (flights[0].before||'') : '';
     return { id:newId(), tail, kk:crew.kk||'', initialFuel, status:'active', createdAt:Date.now(), completedAt:null, flights };
   });
   if(state.trips.length){
     persistTrips();
-    const act = lsGet('active_aircraft'); const match = state.trips.find(t=>t.tail===act);
+    const act = lsGet('active_aircraft'); const actClean = String(act||'').replace(TAIL_FORBIDDEN_CHARS,'');
+    const match = state.trips.find(t=>t.tail===actClean);
     state.activeTripId = match ? match.id : state.trips[0].id;
     lsSet('active_trip_id', state.activeTripId);
   }
@@ -1328,11 +1337,11 @@ document.getElementById('menuHistoryBtn').addEventListener('click', ()=>{ render
 document.getElementById('menuSettingsBtn').addEventListener('click', ()=>{ openSettings(); });
 
 // ---------- Создание командировки ----------
-document.getElementById('trip_tail').addEventListener('input', e=>{ e.target.value = e.target.value.replace(TAIL_FORBIDDEN_CHARS, ''); });
+document.getElementById('trip_tail').addEventListener('input', e=>{ e.target.value = e.target.value.replace(/[^0-9]/g, ''); });
 document.getElementById('trip_fuel').addEventListener('input', e=>{ e.target.value = e.target.value.replace(/[^0-9]/g,''); });
 document.getElementById('cancelTripBtn').addEventListener('click', ()=>{ document.getElementById('tripModalBack').style.display='none'; });
 document.getElementById('createTripBtn').addEventListener('click', async ()=>{
-  const tail = document.getElementById('trip_tail').value.replace(TAIL_FORBIDDEN_CHARS,'').trim();
+  const tail = document.getElementById('trip_tail').value.replace(/[^0-9]/g,'').trim();
   const kk = document.getElementById('trip_kk').value.trim();
   const fuel = document.getElementById('trip_fuel').value.trim();
   if(!tail){ await showAppAlert('Введите номер борта'); return; }
@@ -1376,6 +1385,8 @@ window.deleteTrip = async function(id){
   const t = state.trips.find(x=>x.id===id); if(!t) return;
   const ok = await showAppConfirm(`Удалить командировку (борт ${t.tail}) вместе со всеми её полётами? Это действие необратимо.`);
   if(!ok) return;
+  // удаление активной командировки сбрасывает форму полёта — не делаем этого молча поверх несохранённых правок
+  if(state.activeTripId===id && !(await confirmDiscardIfDirty())) return;
   state.trips = state.trips.filter(x=>x.id!==id);
   if(state.activeTripId===id){
     state.activeTripId = state.trips.length ? state.trips[0].id : null;
@@ -1485,7 +1496,21 @@ function updateArchiveFolderLabel(){
   btn.style.display='inline-block';
   el.textContent = state.settings.archiveFolderPath ? `Выбрано: ${state.settings.archiveFolderPath}` : 'Папка не выбрана — экспорт сохраняется обычным способом, пока не выберете.';
 }
-async function saveToArchive(t, arrayBuffer, filename){
+// t.exportCount задаёт стартовый номер "(переделано N)", но если на диске уже есть файл с этим именем
+// (например, две разные командировки с одним бортом и датой последнего полёта — свои exportCount у каждой
+// начинаются с 0), номер увеличивается дальше, пока не найдётся свободное имя — иначе второй экспорт молча
+// перезаписал бы архивный файл первого.
+async function resolveArchiveFilename(t, existsFn){
+  const base = `Топливо_${t.tail}_${tripLastDate(t)}`;
+  let n = t.exportCount||0;
+  let filename = n>0 ? `${base} (переделано ${n}).xlsx` : `${base}.xlsx`;
+  while(await existsFn(filename)){
+    n++;
+    filename = `${base} (переделано ${n}).xlsx`;
+  }
+  return {filename, exportCount:n};
+}
+async function saveToArchive(t, arrayBuffer){
   const cap = archiveCapability();
   const monthDir = monthFolderName(tripLastDate(t));
   if(cap==='tauri' && state.settings.archiveFolderPath){
@@ -1494,9 +1519,12 @@ async function saveToArchive(t, arrayBuffer, filename){
     const sep = base.includes('\\') ? '\\' : '/';
     const targetDir = `${base}${sep}${t.tail}${sep}${monthDir}`;
     await T.fs.mkdir(targetDir, {recursive:true});
+    const {filename, exportCount} = await resolveArchiveFilename(t, async name=>{
+      try{ return await T.fs.exists(`${targetDir}${sep}${name}`); }catch(e){ return false; }
+    });
     const filePath = `${targetDir}${sep}${filename}`;
     await T.fs.writeFile(filePath, new Uint8Array(arrayBuffer));
-    return filePath;
+    return {path:filePath, exportCount};
   }
   if(cap==='fsa'){
     let handle = fsaDirHandle || await idbGetHandle();
@@ -1504,11 +1532,14 @@ async function saveToArchive(t, arrayBuffer, filename){
     if(!handle || !(await ensureFsaPermission(handle))) return null;
     const tailDir = await handle.getDirectoryHandle(t.tail, {create:true});
     const monthDirHandle = await tailDir.getDirectoryHandle(monthDir, {create:true});
+    const {filename, exportCount} = await resolveArchiveFilename(t, async name=>{
+      try{ await monthDirHandle.getFileHandle(name, {create:false}); return true; }catch(e){ return false; }
+    });
     const fileHandle = await monthDirHandle.getFileHandle(filename, {create:true});
     const writable = await fileHandle.createWritable();
     await writable.write(arrayBuffer);
     await writable.close();
-    return `${handle.name}/${t.tail}/${monthDir}/${filename}`;
+    return {path:`${handle.name}/${t.tail}/${monthDir}/${filename}`, exportCount};
   }
   return null;
 }
@@ -1516,25 +1547,28 @@ window.exportTrip = async function(id){
   const t = state.trips.find(x=>x.id===id); if(!t) return;
   if(!t.flights.length){ await showAppAlert('В этой командировке ещё нет полётов'); return; }
   const bytes = generateOfficialXlsx(calcChain(t.flights), buildExportMetaFor(t));
-  const filename = exportFileName(t);
   const xlsxType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
   // 1) Mac (Tauri) или Android/Chrome с выбранной папкой — сохраняем прямо в архив борт/месяц, как раньше
-  let savedPath = null;
-  try { savedPath = await saveToArchive(t, bytes, filename); } catch(e){ console.error('saveToArchive', e); savedPath = null; }
-  if(savedPath){
-    t.exportCount = (t.exportCount||0)+1;
+  let saved = null;
+  try { saved = await saveToArchive(t, bytes); } catch(e){ console.error('saveToArchive', e); saved = null; }
+  if(saved){
+    t.exportCount = saved.exportCount+1;
     persistTrips();
-    await showAppAlert(`Файл сохранён в архив:\n${savedPath}`);
+    await showAppAlert(`Файл сохранён в архив:\n${saved.path}`);
     return;
   }
+
+  const filename = exportFileName(t);
 
   // 2) Телефон/браузер без настроенной папки архива — системное окно «Поделиться» (не на Mac/Tauri, там поведение как раньше)
   if(!window.__TAURI__ && navigator.share && navigator.canShare){
     try{
       const file = new File([bytes], filename, {type: xlsxType});
       if(navigator.canShare({files:[file]})){
-        await navigator.share({files:[file], title: filename});
+        // без title/text: имя файла уже есть в самом File — лишний title приводил к тому, что
+        // некоторые получатели (напр. «Сохранить в Файлы» на iPhone) сохраняли его как отдельный текстовый файл
+        await navigator.share({files:[file]});
         t.exportCount = (t.exportCount||0)+1;
         persistTrips();
         return; // системное окно само даёт обратную связь об успехе — доп. alert не нужен
