@@ -1336,7 +1336,7 @@ document.getElementById('menuNewBtn').addEventListener('click', ()=>{
   document.getElementById('trip_fuel').value='';
   document.getElementById('tripModalBack').style.display='flex';
 });
-document.getElementById('menuHistoryBtn').addEventListener('click', ()=>{ renderTripsList(); document.getElementById('historyModalBack').style.display='flex'; });
+document.getElementById('menuHistoryBtn').addEventListener('click', ()=>{ historyTailFilter=null; renderTripsList(); document.getElementById('historyModalBack').style.display='flex'; });
 document.getElementById('menuSettingsBtn').addEventListener('click', ()=>{ openSettings(); });
 
 // ---------- Создание командировки ----------
@@ -1619,10 +1619,24 @@ function tripSummary(t){
 }
 function hm(hrs){ const h=Math.floor(hrs); const m=Math.round((hrs-h)*60); return `${h}:${String(m).padStart(2,'0')}`; }
 function fmtHM(h,m){ return `${h||0}:${String(m||0).padStart(2,'0')}`; }
+let historyTailFilter = null; // null = показываем папки бортов; иначе — список командировок этого борта
+function openTailFolder(tail){ historyTailFilter = tail; renderTripsList(); }
+function backToTailFolders(){ historyTailFilter = null; renderTripsList(); }
+function renderTailFolders(box){
+  const lastActivity = {};
+  state.trips.forEach(t=>{
+    const a = Math.max(t.createdAt||0, t.completedAt||0);
+    if(!(t.tail in lastActivity) || a>lastActivity[t.tail]) lastActivity[t.tail] = a;
+  });
+  const tails = Object.keys(lastActivity).sort((a,b)=>lastActivity[b]-lastActivity[a]);
+  box.innerHTML = tails.map(tail=>`<div class="list-item" onclick="openTailFolder('${tail}')"><span>✈ Борт ${tail}</span><span style="color:var(--text-dim)">›</span></div>`).join('');
+}
 function renderTripsList(){
   const box = document.getElementById('tripsList');
   if(!state.trips.length){ box.innerHTML='<div class="empty" style="padding:14px 0;">Командировок пока нет. Создайте новую в меню.</div>'; return; }
-  box.innerHTML = state.trips.map(t=>{
+  if(historyTailFilter===null){ renderTailFolders(box); return; }
+  const backRow = `<div class="list-item" onclick="backToTailFolders()"><span>‹ Все борты</span></div>`;
+  box.innerHTML = backRow + state.trips.filter(t=>t.tail===historyTailFilter).map(t=>{
     const isActive = t.id===state.activeTripId;
     const s = tripSummary(t);
     const badge = t.status==='done' ? '<span class="tc-badge">завершена</span>' : '<span class="tc-badge act">активная</span>';
