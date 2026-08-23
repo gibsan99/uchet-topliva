@@ -1554,6 +1554,107 @@ async function saveToArchive(t, arrayBuffer){
   }
   return null;
 }
+// ---------- Точечный импорт из Excel (только Mac) ----------
+// Читает из xlsx НЕ весь файл целиком, а только несколько заранее известных ячеек по каждому полёту
+// (количества заправок/слива, экономию) — так безопаснее, чем разбирать произвольно изменённую структуру.
+async function extractZipEntry(bytes, targetName){
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let pos = 0;
+  while(pos+30 <= bytes.length && dv.getUint32(pos, true)===0x04034b50){
+    const method = dv.getUint16(pos+8, true);
+    const compSize = dv.getUint32(pos+18, true);
+    const nameLen = dv.getUint16(pos+26, true);
+    const extraLen = dv.getUint16(pos+28, true);
+    const nameStart = pos+30;
+    const name = new TextDecoder().decode(bytes.subarray(nameStart, nameStart+nameLen));
+    const dataStart = nameStart+nameLen+extraLen;
+    const dataEnd = dataStart+compSize;
+    if(name===targetName){
+      const chunk = bytes.subarray(dataStart, dataEnd);
+      if(method===0) return new TextDecoder('utf-8').decode(chunk);
+      if(method===8){
+        const stream = new Blob([chunk]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+        const buf = await new Response(stream).arrayBuffer();
+        return new TextDecoder('utf-8').decode(buf);
+      }
+      throw new Error('Неподдерживаемый метод сжатия в архиве ('+method+')');
+    }
+    pos = dataEnd;
+  }
+  throw new Error('Внутри файла не найден '+targetName+' — это не похоже на xlsx нашего формата');
+}
+function readXlsxCellNumber(sheetXml, ref){
+  const re = new RegExp(`<c r="${ref}"[^>]*(?:/>|>(?:<f[^>]*>[\\s\\S]*?<\\/f>)?(?:<v>([^<]*)<\\/v>)?<\\/c>)`);
+  const m = sheetXml.match(re);
+  if(!m || m[1]===undefined || m[1]==='') return null;
+  const n = parseFloat(m[1]);
+  return isNaN(n) ? null : n;
+}
+window.updateTripFromExcel = async function(id){
+  const t = state.trips.find(x=>x.id===id); if(!t) return;
+  if(!window.__TAURI__){ await showAppAlert('Обновление из Excel доступно только в Mac-приложении.'); return; }
+  if(!t.flights.length){ await showAppAlert('В этой командировке ещё нет полётов.'); return; }
+  const T = window.__TAURI__;
+  let picked;
+  try{
+    picked = await T.dialog.open({multiple:false, title:'Выберите файл экспорта этой командировки', filters:[{name:'Excel', extensions:['xlsx']}]});
+  }catch(e){
+    if(e && e.name==='AbortError') return;
+    await showAppAlert('Не удалось открыть диалог выбора файла: '+(e&&e.message?e.message:String(e))); return;
+  }
+  if(!picked) return;
+  const path = typeof picked==='string' ? picked : (picked.path || (Array.isArray(picked)?picked[0]:null));
+  if(!path) return;
+
+  let bytes, sheetXml;
+  try{
+    bytes = await T.fs.readFile(path);
+    sheetXml = await extractZipEntry(new Uint8Array(bytes), 'xl/worksheets/sheet1.xml');
+  } catch(e){
+    await showAppAlert('Не удалось прочитать файл как xlsx: '+(e&&e.message?e.message:String(e))); return;
+  }
+
+  const computed = calcChain(t.flights);
+  const CHECKS = [
+    {field:'refuelBefore', label:'Заправка до вылета', col:'G'},
+    {field:'drainBefore', label:'Слито до вылета', col:'J'},
+    {field:'refuelAfter', label:'Заправка после полёта', col:'O'},
+  ];
+  const changes = [];
+  t.flights.forEach((f,i)=>{
+    const row = 11+i;
+    CHECKS.forEach(c=>{
+      const curVal = num(f[c.field]);
+      const newVal = readXlsxCellNumber(sheetXml, c.col+row);
+      if(newVal!==null && Math.abs(newVal-curVal)>=1){
+        changes.push({flightIndex:i, flightNum:i+1, field:c.field, label:c.label, was:curVal, becomes:newVal});
+      }
+    });
+    const curEconomy = computed[i].T;
+    const newEconomy = readXlsxCellNumber(sheetXml, 'X'+row);
+    if(newEconomy!==null && Math.abs(newEconomy-curEconomy)>=1){
+      changes.push({flightIndex:i, flightNum:i+1, field:'economy', label:'Экономия', was:curEconomy, becomes:newEconomy});
+    }
+  });
+
+  if(!changes.length){ await showAppAlert('Отличий не найдено — данные в приложении и в файле совпадают.'); return; }
+
+  const html = '<div style="text-align:left;">'+changes.map(c=>
+    `Полёт №${c.flightNum}, ${c.label}: <b>${fmt(c.was)}</b> → <b>${fmt(c.becomes)}</b>`
+  ).join('<br>')+'</div>';
+  const ok = await showAppConfirm('Найдены отличия. Применить изменения из файла?', html);
+  if(!ok) return;
+
+  changes.forEach(c=>{
+    const f = t.flights[c.flightIndex];
+    if(c.field==='economy'){ f.manualEconomy = true; f.manualT = String(c.becomes); }
+    else { f[c.field] = String(c.becomes); }
+  });
+  if(t.id===state.activeTripId){ state.flights = t.flights; saveFlights(); render(); }
+  persistTrips();
+  renderTripsList();
+  await showAppAlert('Данные обновлены.');
+};
 window.exportTrip = async function(id){
   const t = state.trips.find(x=>x.id===id); if(!t) return;
   if(!t.flights.length){ await showAppAlert('В этой командировке ещё нет полётов'); return; }
@@ -1669,6 +1770,7 @@ function renderTripsList(){
       <div class="tc-actions">
         <button class="btn small" onclick="openTrip('${t.id}')">Открыть</button>
         <button class="btn small" onclick="exportTrip('${t.id}')">Поделиться</button>
+        ${window.__TAURI__ ? `<button class="btn small" onclick="updateTripFromExcel('${t.id}')">Обновить из Excel</button>` : ''}
         <button class="btn small" onclick="toggleTripStatus('${t.id}')">${t.status==='done'?'Снова открыть':'Завершить'}</button>
         <button class="btn small danger" onclick="deleteTrip('${t.id}')">Удалить</button>
       </div>

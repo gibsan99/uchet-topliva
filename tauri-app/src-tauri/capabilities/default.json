@@ -17,6 +17,10 @@
       "allow": [{ "path": "$HOME/**" }]
     },
     {
+      "identifier": "fs:allow-read-file",
+      "allow": [{ "path": "$HOME/**" }]
+    },
+    {
       "identifier": "fs:allow-exists",
       "allow": [{ "path": "$HOME/**" }]
     },
