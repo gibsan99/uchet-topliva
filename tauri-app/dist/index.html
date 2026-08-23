@@ -313,6 +313,7 @@
     <div class="hint" style="margin-bottom:10px;">Дата определится по первому полёту, а завершится — когда нажмёте «Завершить командировку».</div>
     <div class="row"><div class="field"><label>Номер борта</label><input type="text" id="trip_tail" inputmode="numeric" placeholder="напр. 76840"></div></div>
     <div class="row"><div class="field"><label>ФИО командира (КК)</label><input type="text" id="trip_kk" placeholder="Иванов И.И."></div></div>
+    <div class="row" id="tripBikRow" style="display:none;"><div class="field"><label>👨‍🔧 Борт-инженер</label><input type="text" id="trip_bik" placeholder="Фамилия И.О."></div></div>
     <div class="row"><div class="field"><label>Топливо на вылет, кг</label><input type="text" id="trip_fuel" inputmode="numeric" placeholder="0"></div></div>
     <div class="btn-row" style="margin-top:10px;">
       <button class="btn primary" id="createTripBtn">Создать</button>
@@ -1334,6 +1335,8 @@ document.getElementById('menuNewBtn').addEventListener('click', ()=>{
   document.getElementById('trip_tail').value='';
   document.getElementById('trip_kk').value='';
   document.getElementById('trip_fuel').value='';
+  document.getElementById('tripBikRow').style.display = window.__TAURI__ ? 'block' : 'none';
+  document.getElementById('trip_bik').value = state.ownerName || '';
   document.getElementById('tripModalBack').style.display='flex';
 });
 document.getElementById('menuHistoryBtn').addEventListener('click', ()=>{ historyTailFilter=null; renderTripsList(); document.getElementById('historyModalBack').style.display='flex'; });
@@ -1346,10 +1349,11 @@ document.getElementById('cancelTripBtn').addEventListener('click', ()=>{ documen
 document.getElementById('createTripBtn').addEventListener('click', async ()=>{
   const tail = document.getElementById('trip_tail').value.replace(/[^0-9]/g,'').trim();
   const kk = document.getElementById('trip_kk').value.trim();
+  const bik = window.__TAURI__ ? document.getElementById('trip_bik').value.trim() : '';
   const fuel = document.getElementById('trip_fuel').value.trim();
   if(!tail){ await showAppAlert('Введите номер борта'); return; }
   if(!(await confirmDiscardIfDirty())) return;
-  const trip = { id:newId(), tail, kk, initialFuel:fuel, status:'active', createdAt:Date.now(), completedAt:null, flights:[] };
+  const trip = { id:newId(), tail, kk, bik, initialFuel:fuel, status:'active', createdAt:Date.now(), completedAt:null, flights:[] };
   state.trips.unshift(trip);
   state.activeTripId = trip.id;
   lsSet('active_trip_id', state.activeTripId);
@@ -1713,7 +1717,7 @@ document.getElementById('largeTextToggle').addEventListener('change', e=>{ state
 function buildExportMetaFor(t){
   const c = calcChain(t.flights);
   const dateRange = c.length ? (c[0].date===c[c.length-1].date ? formatDateRu(c[0].date) : (formatDateRu(c[0].date)+' — '+formatDateRu(c[c.length-1].date))) : '';
-  return { tail: t.tail, aircraftType: 'Ил-76 МД', tripNumber: '', dateRange, crew: {kk:t.kk||'', bik: state.ownerName||''} };
+  return { tail: t.tail, aircraftType: 'Ил-76 МД', tripNumber: '', dateRange, crew: {kk:t.kk||'', bik: t.bik || state.ownerName || ''} };
 }
 function buildExportMeta(){
   const t = activeTrip();
