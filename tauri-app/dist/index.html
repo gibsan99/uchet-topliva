@@ -1408,10 +1408,17 @@ function monthFolderName(dateStr){
 function tripLastDate(t){
   return t.flights.length ? t.flights[t.flights.length-1].date : new Date(t.createdAt).toISOString().slice(0,10);
 }
+// Порядковый номер — свой счётчик на каждый борт, растёт с каждым созданным файлом (не сбрасывается между командировками)
+function nextFileNumber(tail){
+  const counters = safeParseJSON(lsGet('tail_file_counters'), {});
+  const n = (counters[tail]||0) + 1;
+  counters[tail] = n;
+  lsSet('tail_file_counters', JSON.stringify(counters));
+  return n;
+}
 function exportFileName(t){
-  const base = `Топливо_${t.tail}_${tripLastDate(t)}`;
-  const n = t.exportCount||0;
-  return n>0 ? `${base} (переделано ${n}).xlsx` : `${base}.xlsx`;
+  const num = String(nextFileNumber(t.tail)).padStart(4,'0');
+  return `${num} ${t.tail} ${formatDateRu(tripLastDate(t))}.xlsx`;
 }
 // IndexedDB — единственное место, где можно надёжно хранить FileSystemDirectoryHandle между сессиями (localStorage для этого не подходит)
 function idbOpen(){
@@ -1499,19 +1506,16 @@ function updateArchiveFolderLabel(){
   btn.style.display='inline-block';
   el.textContent = state.settings.archiveFolderPath ? `Выбрано: ${state.settings.archiveFolderPath}` : 'Папка не выбрана — экспорт сохраняется обычным способом, пока не выберете.';
 }
-// t.exportCount задаёт стартовый номер "(переделано N)", но если на диске уже есть файл с этим именем
-// (например, две разные командировки с одним бортом и датой последнего полёта — свои exportCount у каждой
-// начинаются с 0), номер увеличивается дальше, пока не найдётся свободное имя — иначе второй экспорт молча
-// перезаписал бы архивный файл первого.
+// Порядковый номер уникален сам по себе, но на случай, если файл с таким именем уже как-то оказался
+// на диске — берём следующий номер счётчика, а не молча перезаписываем.
 async function resolveArchiveFilename(t, existsFn){
-  const base = `Топливо_${t.tail}_${tripLastDate(t)}`;
-  let n = t.exportCount||0;
-  let filename = n>0 ? `${base} (переделано ${n}).xlsx` : `${base}.xlsx`;
-  while(await existsFn(filename)){
-    n++;
-    filename = `${base} (переделано ${n}).xlsx`;
+  let filename = exportFileName(t);
+  let guard = 0;
+  while(await existsFn(filename) && guard<20){
+    filename = exportFileName(t);
+    guard++;
   }
-  return {filename, exportCount:n};
+  return {filename};
 }
 async function saveToArchive(t, arrayBuffer){
   const cap = archiveCapability();
@@ -1522,12 +1526,12 @@ async function saveToArchive(t, arrayBuffer){
     const sep = base.includes('\\') ? '\\' : '/';
     const targetDir = `${base}${sep}${t.tail}${sep}${monthDir}`;
     await T.fs.mkdir(targetDir, {recursive:true});
-    const {filename, exportCount} = await resolveArchiveFilename(t, async name=>{
+    const {filename} = await resolveArchiveFilename(t, async name=>{
       try{ return await T.fs.exists(`${targetDir}${sep}${name}`); }catch(e){ return false; }
     });
     const filePath = `${targetDir}${sep}${filename}`;
     await T.fs.writeFile(filePath, new Uint8Array(arrayBuffer));
-    return {path:filePath, exportCount};
+    return {path:filePath};
   }
   if(cap==='fsa'){
     let handle = fsaDirHandle || await idbGetHandle();
@@ -1535,14 +1539,14 @@ async function saveToArchive(t, arrayBuffer){
     if(!handle || !(await ensureFsaPermission(handle))) return null;
     const tailDir = await handle.getDirectoryHandle(t.tail, {create:true});
     const monthDirHandle = await tailDir.getDirectoryHandle(monthDir, {create:true});
-    const {filename, exportCount} = await resolveArchiveFilename(t, async name=>{
+    const {filename} = await resolveArchiveFilename(t, async name=>{
       try{ await monthDirHandle.getFileHandle(name, {create:false}); return true; }catch(e){ return false; }
     });
     const fileHandle = await monthDirHandle.getFileHandle(filename, {create:true});
     const writable = await fileHandle.createWritable();
     await writable.write(arrayBuffer);
     await writable.close();
-    return {path:`${handle.name}/${t.tail}/${monthDir}/${filename}`, exportCount};
+    return {path:`${handle.name}/${t.tail}/${monthDir}/${filename}`};
   }
   return null;
 }
@@ -1556,8 +1560,6 @@ window.exportTrip = async function(id){
   let saved = null;
   try { saved = await saveToArchive(t, bytes); } catch(e){ console.error('saveToArchive', e); saved = null; }
   if(saved){
-    t.exportCount = saved.exportCount+1;
-    persistTrips();
     await showAppAlert(`Файл сохранён в архив:\n${saved.path}`);
     return;
   }
@@ -1572,8 +1574,6 @@ window.exportTrip = async function(id){
         // без title/text: имя файла уже есть в самом File — лишний title приводил к тому, что
         // некоторые получатели (напр. «Сохранить в Файлы» на iPhone) сохраняли его как отдельный текстовый файл
         await navigator.share({files:[file]});
-        t.exportCount = (t.exportCount||0)+1;
-        persistTrips();
         return; // системное окно само даёт обратную связь об успехе — доп. alert не нужен
       }
     } catch(e){
@@ -1589,8 +1589,6 @@ window.exportTrip = async function(id){
   a.download = filename;
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
-  t.exportCount = (t.exportCount||0)+1;
-  persistTrips();
   await showAppAlert('Файл сохранён — проверьте папку загрузок устройства.');
 };
 
