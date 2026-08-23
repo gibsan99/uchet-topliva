@@ -223,7 +223,7 @@
   <button class="btn" style="flex:1;" id="finishTripBtn">Завершить командировку</button>
 </div>
 
-<div class="card">
+<div class="card" id="flightFormCard">
   <div class="section-title" id="formTitle" style="margin-top:0;">Новый полёт</div>
 
   <div class="row">
@@ -1742,6 +1742,45 @@ function doExport(silent){
   return blob;
 }
 // экспорт/поделиться живут теперь в «Истории командировок» (кнопка «Экспорт» на карточке командировки)
+
+// ---------- Навигация стрелками по полям формы полёта (только Mac/Tauri) ----------
+// Стрелки никогда не меняют значение поля — только переводят фокус на ближайшее поле в этом направлении
+// (как в таблице). На select/date стрелки не переопределяются — там это нативное поведение виджета.
+function flightFormFields(){
+  return Array.from(document.querySelectorAll('#flightFormCard input[type="text"]'))
+    .filter(el => el.offsetParent !== null);
+}
+function focusNearestFlightField(current, dir){
+  const fields = flightFormFields();
+  const rect = current.getBoundingClientRect();
+  const cx = rect.left + rect.width/2, cy = rect.top + rect.height/2;
+  let best = null, bestScore = Infinity;
+  fields.forEach(el=>{
+    if(el===current) return;
+    const r = el.getBoundingClientRect();
+    const ex = r.left + r.width/2, ey = r.top + r.height/2;
+    const dx = ex-cx, dy = ey-cy;
+    let primary, perpendicular, ok;
+    if(dir==='right'){ ok = dx>1; primary = dx; perpendicular = Math.abs(dy); }
+    else if(dir==='left'){ ok = dx<-1; primary = -dx; perpendicular = Math.abs(dy); }
+    else if(dir==='down'){ ok = dy>1; primary = dy; perpendicular = Math.abs(dx); }
+    else { ok = dy<-1; primary = -dy; perpendicular = Math.abs(dx); }
+    if(!ok) return;
+    const score = primary + perpendicular*2; // соседняя строка/колонка весит больше, чтобы не перескакивать мимо
+    if(score<bestScore){ bestScore = score; best = el; }
+  });
+  if(best){ best.focus(); best.select(); }
+}
+const ARROW_DIRS = {ArrowUp:'up', ArrowDown:'down', ArrowLeft:'left', ArrowRight:'right'};
+document.addEventListener('keydown', e=>{
+  if(!window.__TAURI__) return;
+  const dir = ARROW_DIRS[e.key];
+  if(!dir) return;
+  const el = document.activeElement;
+  if(!el || el.tagName!=='INPUT' || el.type!=='text' || !el.closest('#flightFormCard')) return;
+  e.preventDefault();
+  focusNearestFlightField(el, dir);
+});
 
 loadState();
 
