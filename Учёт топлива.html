@@ -218,12 +218,11 @@
 <div id="workView" style="display:none;">
 <div class="sticky-topbar">
   <div class="topbar">
-    <div>
-      <h1>Учёт топлива <span style="color:var(--green);font-size:9px;border:1px solid var(--green);border-radius:5px;padding:2px 5px;vertical-align:middle;margin-left:4px;">офлайн</span></h1>
-      <div class="subtitle" id="dateSubtitle"></div>
+    <div class="btn-row" style="align-items:center;flex:1;min-width:0;">
+      <div class="tail-badge"><span class="lbl">Борт</span><span class="num" id="tailLabel">—</span></div>
+      <div class="subtitle" id="dateSubtitle" style="margin-top:0;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
     </div>
     <div class="btn-row">
-      <div class="tail-badge"><span class="lbl">Борт</span><span class="num" id="tailLabel">—</span></div>
       <button class="btn icon" id="timeCalcBtn" aria-label="Калькулятор времени" title="Калькулятор времени">🧮</button>
       <button class="btn icon" id="menuBtn" aria-label="Меню" title="Меню">☰</button>
     </div>
